@@ -21,11 +21,10 @@ USER_AGENT = 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.6; en-US; rv:1.9.2.12
 def Start():
 	Plugin.AddPrefixHandler('/video/xnxx', MainMenu, NAME, ICON, ART)
 	Plugin.AddViewGroup('List', viewMode='List', mediaType='items')
-	Plugin.AddViewGroup('InfoList', viewMode='InfoList', mediaType='items')
-	Plugin.AddViewGroup('PanelStream', viewMode='PanelStream', mediaType='items')
 
 	MediaContainer.title1 = NAME
 	MediaContainer.art = R(ART)
+	MediaContainer.viewGroup = "List"
 
 	DirectoryItem.thumb = R(ICON)
 	VideoItem.thumb = R(ICON)
@@ -43,6 +42,24 @@ def Thumb(url):
 	except:
 		return Redirect(R(ICON))
 
+def GetDurationFromString(duration):
+	try:
+		durationArray = duration.split(":")
+		if len(durationArray) == 3:
+			hours = int(durationArray[0])
+			minutes = int(durationArray[1])
+			seconds = int(durationArray[2])
+		elif len(durationArray) == 2:
+			hours = 0
+			minutes = int(durationArray[0])
+			seconds = int(durationArray[1])
+		elif len(durationArray)	==	1:
+			hours = 0
+			minutes = 0
+			seconds = int(durationArray[0])
+		return int(((hours)*3600 + (minutes*60) + seconds)*1000)
+	except:
+		return 0
 
 ####################################################################################################
 
@@ -68,8 +85,9 @@ def CategoriesMenu(sender):
 			categoryItemUrl = categoryItemUrl+'/%s/'
 		else:
 			pageFormat = 'categories'
-			categoryItemUrl = categoryItemUrl.replace('/c/','/c/%s/')
+			categoryItemUrl = categoryItemUrl.replace('/c/','/c/%s/').replace(' ','_')
 		if categoryItemTitle.count('More...') == 0:
+			#Log(categoryItemTitle+'__'+categoryItemUrl)
 			dir.Append(Function(DirectoryItem(MovieList, L(categoryItemTitle)), url=categoryItemUrl, mainTitle=categoryItemTitle, pageFormat=pageFormat))
 	return dir
 
@@ -81,11 +99,11 @@ def MovieList(sender,url,mainTitle='',searchQuery='',pageFormat='normal',page=0)
 
 	if page > 0:
 		if pageFormat in catTags:
-			dir = MediaContainer(title2 = 'Category: '+mainTitle+' | Page: '+str(pageShow), replaceParent=(page>0))
+			dir = MediaContainer(title2 = 'Category: '+mainTitle+' | Page: '+str(pageShow))
 		elif pageFormat == 'search':
-			dir = MediaContainer(title2 = mainTitle+': '+searchQueryNice+' | Page: '+str(pageShow), replaceParent=(page>0))
+			dir = MediaContainer(title2 = mainTitle+': '+searchQueryNice+' | Page: '+str(pageShow))
 		else:
-			dir = MediaContainer(title2 = mainTitle+' | Page: '+str(pageShow), replaceParent=(page>0))
+			dir = MediaContainer(title2 = mainTitle+' | Page: '+str(pageShow))
 	else:
 		if pageFormat in catTags:
 			dir = MediaContainer(title2 = 'Category: '+mainTitle)
@@ -110,19 +128,19 @@ def MovieList(sender,url,mainTitle='',searchQuery='',pageFormat='normal',page=0)
 	else:
 		pageContent = HTML.ElementFromURL(url % str(page))
 
-	if page > 0:
-		pageM = page-1
-		if len(pageContent.xpath('//div[@id="pag"]/a[@class="nP"]')) > 0:
-			prvUrl = XNXX_VIDEO+pageContent.xpath('//div[@id="pag"]/a[@class="nP"]')[0].get('href')
-			if pageFormat == 'search':
-				prvUrl = prvUrl.replace('?k='+searchQuery,'?k=%s')
-				prvUrl = prvUrl.replace('&p='+str(pageM),'&p=%s')
-			else:
-				prvUrl = prvUrl.replace('/'+str(pageM),'/%s')
-			dir.Append(Function(DirectoryItem(MovieList, L('+++Previous Page ('+str(pageM)+')+++')), url=prvUrl, searchQuery=searchQuery, mainTitle=mainTitle, pageFormat=pageFormat, page=pageM))
+#	if page > 0:
+#		pageM = page-1
+#		if len(pageContent.xpath('//div[@id="pag"]/a[@class="nP"]')) > 0:
+#			prvUrl = XNXX_VIDEO+pageContent.xpath('//div[@id="pag"]/a[@class="nP"]')[0].get('href')
+#			if pageFormat == 'search':
+#				prvUrl = prvUrl.replace('?k='+searchQuery,'?k=%s')
+#				prvUrl = prvUrl.replace('&p='+str(pageM),'&p=%s')
+#			else:
+#				prvUrl = prvUrl.replace('/'+str(pageM),'/%s')
+#			dir.Append(Function(DirectoryItem(MovieList, L('+++Previous Page ('+str(pageM)+')+++')), url=prvUrl, searchQuery=searchQuery, mainTitle=mainTitle, pageFormat=pageFormat, page=pageM))
 
 	if pageFormat in xpathInitGroup:
-		initialXpath = '//td[@width="183"]'
+		initialXpath = '//div[@class="thumbs"]//li/div/span'
 	else:
 		initialXpath = '//div[@align="center"]/span[@style="font-size:12px"]'
 	for videoItem in pageContent.xpath(initialXpath):
@@ -139,27 +157,12 @@ def MovieList(sender,url,mainTitle='',searchQuery='',pageFormat='normal',page=0)
 				videoItemThumb = videoItem.xpath('a[@class="miniature"]/img')[0].get('src')
 			else:
 				videoItemThumb = ''
-			if len(videoItem.xpath('div[@class="t_all"]/font')) > 0:
-				videoItemExtra = videoItem.xpath('div[@class="t_all"]/font')[0].text.strip().replace('min sex rated ','')
-				videoItemExtraA = videoItemExtra.split(' ')
-				if len(videoItemExtraA) == 2:
-					videoItemDuration = int(videoItemExtraA[0])*60
-					videoItemDurationTxt = str(videoItemExtraA[0])+':00'
-					videoItemRating = round((float(videoItemExtraA[1].strip('%'))/10),2)
-				elif len(videoItemExtraA) == 3:
-					videoItemDuration = int(videoItemExtraA[0].strip('h'))*3600+int(videoItemExtraA[1])*60
-					videoItemDurationTxt = str(videoItemExtraA[0].strip('h'))+':'+str(videoItemExtraA[1])+':00'
-					videoItemRating = round((float(videoItemExtraA[2].strip('%'))/10),2)
-				else:
-					videoItemDuration = 0
-					videoItemDurationTxt = 'n/a'
-					videoItemRating = 0
-			else:
-				videoItemDuration = 0
-				videoItemDurationTxt = 'n/a'
-				videoItemRating = 0
-			videoItemSummary = 'Duration: ' + str(videoItemDurationTxt)+' in sec: '+str(videoItemDuration)
-			videoItemSummary += '\r\nRating: ' + str(videoItemRating)
+		elif pageFormat == 'tags':
+			videoItemTitle = videoItem.xpath('a/span/text()')[0].strip()
+			videoItemLink = videoItem.xpath('a')[0].get('href')
+			videoItemThumb = None
+			try: videoItemThumb = videoItem.xpath('a/img')[0].get('src')
+			except: pass
 		else:
 			if len(videoItem.xpath('a/span')) > 0:
 				videoItemTitle = videoItem.xpath('a/span')[0].text.strip()
@@ -177,28 +180,18 @@ def MovieList(sender,url,mainTitle='',searchQuery='',pageFormat='normal',page=0)
 				videoItemThumb = videoItem.xpath('script')[0].text.strip()
 				videoItemThumb = re.compile('<img src=\"(.+?)\"').findall(videoItemThumb, re.DOTALL)
 				videoItemThumb = videoItemThumb[0]
-			if len(videoItem.xpath('a/font')) > 0:
-				videoItemExtra = videoItem.xpath('a/font')[0].text.strip().replace('min sex rated ','')
-				videoItemExtraA = videoItemExtra.split(' ')
-				if len(videoItemExtraA) == 2:
-					videoItemDuration = int(videoItemExtraA[0])*60
-					videoItemDurationTxt = str(videoItemExtraA[0])+':00'
-					videoItemRating = round((float(videoItemExtraA[1].strip('%'))/10),2)
-				elif len(videoItemExtraA) == 3:
-					videoItemDuration = int(videoItemExtraA[0].strip('h'))*3600+int(videoItemExtraA[1])*60
-					videoItemDurationTxt = str(videoItemExtraA[0].strip('h'))+':'+str(videoItemExtraA[1])+':00'
-					videoItemRating = round((float(videoItemExtraA[2].strip('%'))/10),2)
-				else:
-					videoItemDuration = 0
-					videoItemDurationTxt = 'n/a'
-					videoItemRating = 0
-			else:
-				videoItemDuration = 0
-				videoItemDurationTxt = 'n/a'
-				videoItemRating = 0
-			videoItemSummary = 'Duration: ' + str(videoItemDurationTxt)+' in sec: '+str(videoItemDuration)
-			videoItemSummary += '\r\nRating: ' + str(videoItemRating)
-		dir.Append(Function(VideoItem(PlayVideo, title=videoItemTitle, summary=videoItemSummary, duration=videoItemDuration, rating=videoItemRating, thumb=Function(Thumb, url=videoItemThumb)), url=videoItemLink))
+		videoItemDuration = None
+		videoItemRating = None
+		try:
+			info = videoItem.xpath('.//font[@color="#5C99FE"]/text()')[0].strip()
+			info1 = info.replace(' sex rated ','__').replace(' Rated : ','__')
+			info2 = info1.split('__')
+			duration = info2[0].replace('h ',':').replace(' min ',':').replace(' min',':00').replace(' sec','').strip('()')
+			videoItemDuration = GetDurationFromString(duration)
+			videoItemRating = round((float(info2[1].strip('%'))/10),2)
+		except: pass
+		#Log(str(videoItemDuration)+'__'+str(videoItemRating))
+		dir.Append(Function(VideoItem(PlayVideo, title=videoItemTitle, duration=videoItemDuration, rating=videoItemRating, thumb=Function(Thumb, url=videoItemThumb)), url=videoItemLink))
 	#Get nextPagination
 	pageP = page+1
 	if len(pageContent.xpath('//div[@id="pag"]/a[@class="nP"]')) > 1:
